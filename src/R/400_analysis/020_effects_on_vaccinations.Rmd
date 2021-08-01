@@ -1,0 +1,1081 @@
+---
+title: The effect of messages on vaccinations
+author: Jake Bowers
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+header-includes:
+  - \usepackage{float,booktabs,longtable,tabu,array}
+  - \usepackage[small]{caption}
+  - \captionsetup[table]{position=bottom}
+  - \floatplacement{figure}{H}  #make every figure with caption = h, this was the fix
+  - \floatplacement{table}{H}  #make every figure with caption = h, this was the fix
+output:
+  pdf_document:
+    fig_caption: yes
+    fig_height: 9
+    fig_width: 9
+    latex_engine: xelatex
+    keep_tex: true
+    keep_md: true
+    toc: true
+geometry: "left=1in,right=1in,top=1in,bottom=1in"
+graphics: yes
+fontsize: 11pt
+mainfont: "Open Sans"
+---
+
+```{r setup, include=FALSE,echo=FALSE}
+library(here)
+## The here library should point to the root of the github repo.
+# the output of here()  should be something like the following
+# "/Users/jwbowers/Documents/PROJECTS/COVID-Description"
+source(here::here("src", "R", "400_analysis", "000_constants.R"))
+source(here::here("src", "R", "400_analysis", "010_rmd_setup.R"))
+library(tidyverse)
+library(coin)
+library(estimatr)
+library(randomizr)
+library(conf)
+library(ggpubr)
+```
+
+```{r readdata}
+## The file expanding the aggregated data
+wrkdat <- read_csv(file.path(DATA_DIR, "dat_indiv.csv"))
+## This next makes an error in case the original data changed. Mostly to make us pay attention.
+stopifnot(nrow(wrkdat) == 158103)
+
+## The latest file from Kevin
+wrkdat2 <- read_csv(file.path(DATA_DIR, "final_data_one_line_per_individual.csv"))
+nrow(wrkdat2)
+stopifnot(nrow(wrkdat2) == 158103)
+stopifnot(all(!is.na(wrkdat2$date_sent)))
+## This next fails
+
+wrkdat_design_tab <- with(wrkdat, table(date_sent, assigned_message, exclude = c()))
+wrkdat2_design_tab <- with(wrkdat2, table(date_sent, assigned_message, exclude = c()))
+stopifnot(all.equal(wrkdat_design_tab, wrkdat2_design_tab, exclude = c()))
+
+wrkdat_outcomes_tab <- with(wrkdat, table(date_sent, is_vax_after_send))
+wrkdat2_outcomes_tab <- with(wrkdat2, table(date_sent, is_vax_after_send))
+stopifnot(all.equal(wrkdat_design_tab, wrkdat2_design_tab, exclude = c()))
+
+## Add ZCTA data to wrkdat2:
+
+zctadat <- read_csv(file.path(DEMO_DATA_DIR, "combined_demo_data_by_zcta.csv"))
+## The first column, auto-named to X1 is noise
+zctadat$X1 <- NULL
+
+zctadat <- zctadat %>% mutate(
+  pct_any_blk = any_black_population / total_population,
+  pct_hisp = hispanic_population / total_population,
+  pct_dem = dem_vote / total_vote,
+  pct_gop = gop_vote / total_vote,
+  pct_vote = total_vote / total_population
+)
+
+## Any mismatch in ZCTA ids?
+## using https://stackoverflow.com/questions/19797954/function-to-find-symmetric-difference-opposite-of-intersection-in-r
+sym_diff2 <- function(a, b) unique(c(setdiff(a, b), setdiff(b, a)))
+sym_diff2(unique(wrkdat2$zcta), unique(zctadat$zcta))
+## So some people with no ZCTA. We will address this in the supplementary analyses later
+wrkdat3 <- left_join(wrkdat2, zctadat, by = "zcta")
+stopifnot(nrow(wrkdat3) == nrow(wrkdat2))
+## We will use wrkdat3 for the rest of the time
+```
+
+# Design
+
+This study randomly assigned 8 sms message types plus 1 control arm (no msg) (9
+arms total) to roughly 160,000 (exactly 158,103) Rhode Islanders and recorded whether or not
+these people were vaccinated during the study period.
+
+The randomization occurred each week and then, within arm, people were randomly
+assigned to a day on which they could be sent a text message. This nested
+randomization can be represented as complete randomization to one of 9 arms
+within each active day of the study. The table below, created by  `with(wrkdat3, table(date_sent, assigned_message, exclude = c()))`, shows a pattern of assignment by day consistent with this idea --- roughly equal numbers assigned per message condition per day within each iteration.
+
+The experiment also involve adaptive randomization, and the Thompson sampling
+algorithm assigned more people to arm 6 in the final week, for example. A
+block-randomized experiment can often have variation in probabilities assigned
+to treatment, and the analysis of such an experiment thus is no different
+whether there are changes in assignment probabilities between blocks or not.
+
+
+# Data Setup
+
+We drop observations assigned to be sent a message on June 15, 2021 because those messages were not sent and because people were assigned to that date at random.
+
+```{r dropjune15}
+wrkdat3 <- wrkdat3 %>%
+  filter(date_sent < "2021-06-15") %>%
+  droplevels()
+stopifnot(nrow(wrkdat3) == 142428)
+```
+
+
+```{r makewrkdat3}
+## Some recoding to make things nicer for coin etc..
+## Also coin wants factor variables for the CMH tests (since those are test of independence of contingency tables)
+wrkdat3$messageF <- factor(wrkdat3$assigned_message)
+wrkdat3$vaccinated <- as.numeric(wrkdat3$is_vax_after_send)
+wrkdat3$vaccinatedF <- factor(wrkdat3$vaccinated)
+
+wrkdat3$vac_in_week <- as.numeric(wrkdat3$is_within_one_week_after_send)
+wrkdat3$vac_in_weekF <- factor(wrkdat3$vac_in_week)
+
+## Checking that vaccinated in week is a subset of vaccinated
+with(wrkdat3, table(vac_in_weekF, vaccinatedF, exclude = c()))
+
+wrkdat3$date_sentF <- factor(wrkdat3$date_sent)
+##  A new variable that records the "any message" versus "no message" contrast
+wrkdat3$not_control <- as.numeric(wrkdat3$messageF != "message_0")
+with(wrkdat3, table(messageF, not_control, exclude = c()))
+wrkdat3$not_controlF <- factor(wrkdat3$not_control)
+
+## This next does not involve all possible dates, only those existing in the data:
+unique(wrkdat3$date_sent)
+## Any missing dates will be assigned NA and the code will stop if any NA are detected
+wrkdat3 <- wrkdat3 %>% mutate(iteration = case_when(
+  date_sent <= "2021-05-28" ~ 1,
+  date_sent >= "2021-06-02" & date_sent <= "2021-06-08" ~ 2,
+  date_sent > "2021-06-08" ~ 3
+))
+stopifnot(any(!is.na(wrkdat3$iteration)))
+## Inspect by hand
+with(wrkdat3, table(date_sent, iteration, exclude = c()))
+```
+
+Notice that assignment is consistent with complete randomization in iteration 1
+(equal numbers assigned to each message that week).  It diverges from uniform
+assignment in iteration 2 and 3 because we are using the $\varepsilon$-Thompson
+adaptive algorithm for assignment. Notice that within `iteration`, roughly
+equal numbers are allocated to each day within message type. This was also done
+at random, making this a study that can be treated as if it were
+block-randomized by day.
+
+```{r missdateval}
+with(wrkdat3, table(iteration, assigned_message, exclude = c()))
+with(wrkdat3, table(date_sentF, assigned_message, exclude = c()))
+## Message types
+## 0. Control
+## 1. Ownership (baseline prompt)
+## 2. Safety
+## 3. Pros of vaccination (implicit choice): no hospitals
+## 4. Epistemic humility + pros of vaccination (implicit choice): no hospitals
+## 5. Access
+## 6. Family concern
+## 7. Social proof
+## 8. Social proof + family concern
+```
+
+```{r date_sent}
+with(wrkdat3, table(iteration, exclude = FALSE))
+with(wrkdat3, table(date_sent, exclude = FALSE))
+```
+
+
+## Weight Creation
+
+A block-randomized study is a collection of mini-experiments. Overall tests and
+estimates involve some kind of combination of those block-level quantities,
+using weights to give larger and more informative blocks more weight and/or to
+target specific kinds of treatment effects.  We pre-specified that we would use
+block-size weights because we know that these produce unbiased estimators.
+Right now, the `difference_in_means` command will use those estimators by
+default, but only for a comparison of two arms. To make things easier later on,
+we therefore create weights here to be used in our standard linear regression
+command (`lm_robust`) that we use for general estimation in randomized studies
+(because, in part, it uses randomization justified standard errors by default,
+and thus allows less typing than `lm`).
+
+Here we add weights to the data set since each block (`date_sent` involved
+different assignments to treatment (actually it was each `iteration` but the
+sms were then divided at random into days for sending and we are then treating
+each moment of administering the treatment as a block).
+
+I'm doing this slow to convince myself, and perhaps, others that (1) there are
+different ways to weight blocks and (2) that what we are seeing from the canned
+R commands with weights makes sense. During the weight creation we will be
+doing some analyses of the effects of the study, they are mainly to help us
+ensure that we creating the weights correctly. A cleaner analysis is below,
+under "Pre-specified analyses".
+
+```{r twoarmweights}
+## The two arm version:
+## Creating the weights following the examples in the randomizr vignettes
+block_m_each_bin <- with(wrkdat3, table(date_sentF, not_control, exclude = c()))
+declared_randomization_twoarm <- declare_ra(blocks = wrkdat3$date_sentF, block_m = block_m_each_bin[, "1"])
+wrkdat3$IPW_weight_bin <- 1 / obtain_condition_probabilities(declaration = declared_randomization_twoarm, assignment = wrkdat3$not_control)
+## unique(wrkdat3$IPW_weight_bin)
+## Now doing this by hand, following Gerber and Green Chap 3 (creating regression weights to reflect block-size weighting)
+wrkdat3 <- wrkdat3 %>%
+  group_by(date_sentF) %>%
+  mutate(
+    nb = n(),
+    p_not_control = mean(not_control),
+    nbwt_bin = ifelse(not_control == 1, 1 / p_not_control, 1 / (1 - p_not_control)),
+  ) %>%
+  ungroup()
+
+stopifnot(all.equal(wrkdat3$IPW_weight_bin, wrkdat3$nbwt_bin))
+
+lm_bin0 <- difference_in_means(vaccinated ~ not_control, blocks = date_sentF, data = wrkdat3)
+lm_bin1 <- lm_robust(vaccinated ~ not_control, data = wrkdat3, weights = nbwt_bin)
+lm_bin2 <- lm_robust(vaccinated ~ not_control, data = wrkdat3, weights = IPW_weight_bin)
+lm_bin1
+stopifnot(all.equal(lm_bin0$coef, lm_bin1$coef["not_control"]))
+stopifnot(all.equal(lm_bin0$coef, lm_bin2$coef["not_control"]))
+
+## Now for the precision weighted version
+## lm_bin3 <- lm_robust(vaccinated~not_control,fixed_effects=~date_sentF,data=wrkdat3)
+## lm_bin3
+```
+
+We cannot use `difference_of_means` for a multi-armed treatment, but we follow the same general approach:
+
+```{r}
+### Multiple arm version
+block_m_each <- with(wrkdat3, table(date_sentF, messageF, exclude = c()))
+block_prob_each <- block_m_each / rowSums(block_m_each)
+declared_randomization_multarm <- declare_ra(blocks = wrkdat3$date_sentF, block_m_each = block_m_each, conditions = sort(unique(wrkdat3$messageF)))
+wrkdat3$IPW_weight_multarm <- 1 / obtain_condition_probabilities(declaration = declared_randomization_multarm, assignment = wrkdat3$messageF)
+## unique(wrkdat3$IPW_weight_multarm)
+
+stopifnot(all.equal(sort(unique(1 / wrkdat3$IPW_weight_multarm)), sort(unique(block_prob_each))))
+
+lm_multarm_ipw <- lm_robust(vaccinated ~ messageF, data = wrkdat3, weights = IPW_weight_multarm)
+## lm1_mult_fe <- lm_robust(vaccinated~messageF,data=wrkdat3,fixed_effects=~date_sentF)
+lm_multarm_ipw
+## lm1_mult_fe
+
+## Creating the weights by hand to verify understanding:
+wrkdat3 <- wrkdat3 %>%
+  group_by(date_sentF) %>%
+  mutate(
+    p_m_0 = mean(messageF == "message_0"),
+    p_m_1 = mean(messageF == "message_1"),
+    p_m_2 = mean(messageF == "message_2"),
+    p_m_3 = mean(messageF == "message_3"),
+    p_m_4 = mean(messageF == "message_4"),
+    p_m_5 = mean(messageF == "message_5"),
+    p_m_6 = mean(messageF == "message_6"),
+    p_m_7 = mean(messageF == "message_7"),
+    p_m_8 = mean(messageF == "message_8"),
+    nbwt_mult = as.numeric(messageF == "message_0") / p_m_0 +
+      as.numeric(messageF == "message_1") / p_m_1 +
+      as.numeric(messageF == "message_2") / p_m_2 +
+      as.numeric(messageF == "message_3") / p_m_3 +
+      as.numeric(messageF == "message_4") / p_m_4 +
+      as.numeric(messageF == "message_5") / p_m_5 +
+      as.numeric(messageF == "message_6") / p_m_6 +
+      as.numeric(messageF == "message_7") / p_m_7 +
+      as.numeric(messageF == "message_8") / p_m_8
+  ) %>%
+  ungroup()
+## Verify that the IPW weights using randomizr are the same as those we created by hand
+stopifnot(all.equal(sort(unique(wrkdat3$IPW_weight_multarm)), sort(unique(wrkdat3$nbwt_mult))))
+```
+
+Now estimate effects by first aggregating to the block level and then weighting
+(this is just to check that we can get the same numbers as when we use
+`lm_robust` etc..):
+
+```{r}
+wrkdat3_b <- wrkdat3 %>%
+  group_by(date_sentF) %>%
+  summarize(
+    nb = n(),
+    effect_1 = mean(vaccinated[messageF == "message_1"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_2 = mean(vaccinated[messageF == "message_2"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_3 = mean(vaccinated[messageF == "message_3"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_4 = mean(vaccinated[messageF == "message_4"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_5 = mean(vaccinated[messageF == "message_5"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_6 = mean(vaccinated[messageF == "message_6"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_7 = mean(vaccinated[messageF == "message_7"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_8 = mean(vaccinated[messageF == "message_8"]) - mean(vaccinated[messageF == "message_0"]),
+    effect_any_msg = mean(vaccinated[messageF != "message_0"]) - mean(vaccinated[messageF == "message_0"])
+  )
+## The ATE over all is just the weighted average of the block ATEs
+simp_est <- wrkdat3_b %>% summarize(across(
+  .cols = contains("effect"),
+  .fns = function(x) {
+    weighted.mean(x, w = nb)
+  }
+))
+## Test the block-based algorithm itself
+stopifnot(all.equal(with(wrkdat3_b, weighted.mean(x = effect_1, w = nb)), simp_est$effect_1))
+stopifnot(all.equal(with(wrkdat3_b, weighted.mean(x = effect_6, w = nb)), simp_est$effect_6))
+
+## Verifying that we get the same answer with explicit weighting (building up from the block-level estimates)
+## versus regression weights
+## The "any message" effect differs slightly but everything else is identical
+rbind(by_hand = simp_est, by_lm = lm_multarm_ipw$coef[-1])
+```
+
+Ok. So, I'm satisfied with the regression weights as doing their job, and we
+can move on to basic descriptives and the pre-registered analyses using tools
+like `lm_robust`. Weighting the different blocks is implicit (and optimal from
+a statistical testing perspective) in `cmh_test`.
+
+## Basic Descriptions and Visualization
+
+Here is a rough plot to show the proportions vaccinated by message by date plus
+binomial 95% confidence intervals for those proportions. These are not effects,
+just proportions. Each panel shows a gray vertical line at the proportion vaccinated in the control condition.
+
+```{r plotdatasetup, echo=FALSE}
+plotdat0 <- wrkdat3 %>%
+  group_by(date_sent, messageF) %>%
+  summarize(
+    prop_vac = mean(vaccinated),
+    prop_vac_in_week = mean(vac_in_week),
+    N = n(),
+    nvac = sum(vaccinated),
+    nvac_in_week = sum(vac_in_week)
+  )
+
+binci <- function(x, N) {
+  bincires <- binomTestEnsemble(x = x, n = N)
+  res <- tibble(x = x, n = N, ll = bincires[1], ul = bincires[2])
+  res$se2 <- (res$ul - res$ll) / 4
+  return(res)
+}
+
+plotdat1 <- plotdat0 %>%
+  rowwise() %>%
+  mutate(binci(x = nvac, N = N)) %>%
+  ungroup()
+
+plotdat1 <- plotdat1 %>% mutate(iteration = case_when(
+  date_sent <= "2021-05-28" ~ 1,
+  date_sent >= "2021-06-02" & date_sent <= "2021-06-08" ~ 2,
+  date_sent > "2021-06-08" ~ 3
+))
+
+thexlim <- range(plotdat1[, c("ll", "ul")])
+
+plotdat1 <- plotdat1 %>% mutate(mtype = case_when(
+  messageF == "message_0" ~ "Control",
+  messageF == "message_1" ~ "Ownership",
+  messageF == "message_2" ~ "Safety",
+  messageF == "message_3" ~ "Preventing bad outcomes",
+  messageF == "message_4" ~ "Epistemic humility+no bad outcomes", messageF == "message_5" ~ "Access", messageF == "message_6" ~ "Family concern",
+  messageF == "message_7" ~ "Social proof", messageF == "message_8" ~ "Social proof+family concern"
+))
+
+plotdat1$mtypeF <- factor(plotdat1$mtype, levels = c("Control", "Ownership", "Safety", "Preventing bad outcomes", "Epistemic humility+no bad outcomes", "Access", "Family concern", "Social proof", "Social proof+family concern"))
+with(plotdat1, table(mtype, mtypeF, exclude = c()))
+
+with(plotdat1, table(mtype, messageF, exclude = c()))
+with(plotdat1, table(mtypeF, messageF, exclude = c()))
+```
+
+```{r plot1, echo=FALSE, out.width=".9\\textwidth"}
+g1 <- plotdat1 %>%
+  filter(iteration == 1) %>%
+  ggplot(aes(y = mtypeF, x = prop_vac)) +
+  geom_point() +
+  geom_segment(aes(x = ll, xend = ul, yend = mtypeF, y = mtypeF)) +
+  geom_vline(data = filter(plotdat1, iteration == 1 & mtypeF == "Control"), aes(xintercept = prop_vac), color = "grey") +
+  facet_wrap(~date_sent, nrow = 1) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlim(thexlim) +
+  xlab("Proportion Vaccinated") +
+  ylab("")
+g2 <- plotdat1 %>%
+  filter(iteration == 2) %>%
+  ggplot(aes(y = mtypeF, x = prop_vac)) +
+  geom_point() +
+  geom_segment(aes(x = ll, xend = ul, yend = mtypeF, y = mtypeF)) +
+  geom_vline(data = filter(plotdat1, iteration == 2 & mtypeF == "Control"), aes(xintercept = prop_vac), color = "grey") +
+  facet_wrap(~date_sent, nrow = 1) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlim(thexlim) +
+  xlab("Proportion Vaccinated") +
+  ylab("")
+g3 <- plotdat1 %>%
+  filter(iteration == 3) %>%
+  ggplot(aes(y = mtypeF, x = prop_vac)) +
+  geom_point() +
+  geom_segment(aes(x = ll, xend = ul, yend = mtypeF, y = mtypeF)) +
+  geom_vline(data = filter(plotdat1, iteration == 3 & mtypeF == "Control"), aes(xintercept = prop_vac), color = "grey") +
+  facet_wrap(~date_sent, nrow = 1) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  xlim(thexlim) +
+  xlab("Proportion Vaccinated") +
+  ylab("")
+
+plot1 <- ggarrange(g1, g2, g3, nrow = 3, labels = c("Iteration 1", "Iteration 2", "Iteration 3"))
+# print(plot1)
+ggsave(file = "day_by_day_plot.pdf", path = OUTPUT_DIR, plot = plot1, device = cairo_pdf, width = 8, height = 6)
+ggsave(file = "day_by_day_plot.png", path = OUTPUT_DIR, plot = plot1, type = "cairo-png", dpi = 300, width = 8, height = 6)
+```
+
+Proportion vaccinated by date and message arm (these are the point values in the above plot):
+
+```{r}
+prop_vac_arr <- matrix(plotdat1$prop_vac,
+  nrow = 13, byrow = TRUE,
+  dimnames = list(sort(unique(as.character(plotdat1$date_sent))), sort(unique(plotdat1$messageF)))
+)
+
+zapsmall(prop_vac_arr, digits = 2)
+```
+
+Can we see any patterns in the extent to which any given message, sent any
+given day, elicited more vaccinations than control? Not really, each message
+was, in absolute terms, sometimes better than and sometimes worse than control.
+No message stands out for always being worse or better than control (and notice
+this little table weighs all days equally).
+
+```{r}
+
+prop_diffs <- apply(prop_vac_arr, 2, function(x) {
+  x - prop_vac_arr[, 1]
+})
+
+prop_diffs
+
+signs_prop_diffs <- sign(prop_diffs)
+
+signs_prop_diffs
+
+## Number of times greater than control
+gt_control <- apply(signs_prop_diffs, 2, function(x) {
+  sum(x > 0)
+})
+lt_control <- apply(signs_prop_diffs, 2, function(x) {
+  sum(x < 0)
+})
+
+rbind(gt_control, lt_control)
+```
+
+What about patterns in the extent to which one message was higher ranked in a
+given day? Not really, the average rank out of 9 messages is about 4,5 or 6 for
+each message across the days. The number of times that a message is lowest or
+highest ranked is not huge (out of 13 days): like less than 3 days out of 13
+does one message appear worst or best.
+
+```{r}
+prop_rank <- t(apply(prop_vac_arr, 1, function(x) {
+  rank(x)
+}))
+
+prop_rank
+
+apply(prop_rank, 2, mean)
+
+apply(prop_rank, 2, function(x) {
+  sum(x == min(x))
+})
+apply(prop_rank, 2, function(x) {
+  sum(x == max(x))
+})
+```
+
+
+As a reminder about the sample sizes in each message and day:
+
+```{r}
+
+with(wrkdat3, table(date_sent, messageF, exclude = c()))
+```
+
+A figure with proportion vaccinated at all, and another with proportion vaccinated within a week.
+
+```{r}
+plotdat1$line_thick <- ifelse(plotdat1$messageF == "message_0", 2, 1)
+plotdat1$control_msg <- plotdat1$messageF == "message_0"
+
+g_prop_vac <- ggplot(plotdat1, aes(x = date_sent, y = prop_vac, group = mtypeF, color = mtypeF, size = control_msg)) +
+  geom_point() +
+  geom_line() +
+  guides(color = guide_legend(title = "Message")) +
+  scale_colour_brewer(type = "div") +
+  ylab("Vaccinated by June 22") +
+  xlab("Date Assigned Message") +
+  scale_size_manual(values = c(0.5, 1.2), guide = "none") +
+  scale_linetype_manual(values = c("solid", "dashed"), guide = "none") +
+  theme_classic(base_family = "Open Sans") +
+  theme(
+    text = element_text(size = 16),
+    axis.text.x = element_text(angle = 0, hjust = 1),
+    legend.position = c(.6, 0.8)
+  )
+
+# g_prop_vac
+
+g_prop_vac_smooth <- ggplot(plotdat1, aes(x = date_sent, y = prop_vac, group = mtypeF, color = mtypeF, size = control_msg)) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = "loess", span = 2 / 3, method.args = list(degree = 1, family = "symmetric")) +
+  guides(color = guide_legend(title = "Message")) +
+  scale_colour_brewer(type = "div") +
+  ylab("Vaccinated by June 22") +
+  xlab("Date Assigned Message") +
+  scale_size_manual(values = c(0.5, 1.2), guide = "none") +
+  scale_linetype_manual(values = c("solid", "dashed"), guide = "none") +
+  theme_classic(base_family = "Open Sans") +
+  theme(
+    text = element_text(size = 16),
+    axis.text.x = element_text(angle = 0, hjust = 1),
+    legend.position = c(.6, 0.8)
+  )
+
+# g_prop_vac_smooth
+
+## Trying to break lines in between iterations. Not working well.
+## blah <- tidyr::complete(plotdat1, date_sent = seq(min(date_sent), max(date_sent), by = "day"))
+
+g_prop_vac_in_week <- ggplot(plotdat1, aes(x = date_sent, y = prop_vac_in_week, group = mtypeF, color = mtypeF, size = control_msg)) +
+  geom_point() +
+  geom_path() +
+  # facet_wrap(~iteration,scales="free")+
+  guides(color = guide_legend(title = "Message")) +
+  scale_colour_brewer(type = "div") +
+  ylab("Vaccinated within a Week of Message Assignment") +
+  xlab("Date Assigned Message") +
+  scale_size_manual(values = c(0.5, 1.2), guide = "none") +
+  scale_linetype_manual(values = c("solid", "dashed"), guide = "none") +
+  theme_classic(base_family = "Open Sans") +
+  theme(
+    text = element_text(size = 16),
+    axis.text.x = element_text(angle = 0, hjust = 1)
+  )
+
+# g_prop_vac_in_week
+
+g_prop_vac_smooth_in_week <- ggplot(plotdat1, aes(x = date_sent, y = prop_vac_in_week, group = mtypeF, color = mtypeF, size = control_msg)) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = "loess", span = 2 / 3, method.args = list(degree = 1, family = "symmetric")) +
+  guides(color = guide_legend(title = "Message")) +
+  ylab("Vaccinated within a Week of Message Assignment") +
+  xlab("Date Assigned Message") +
+  # geom_vline(xintercept=as.Date(c("2021-05-31","2021-06-08")))+
+  scale_size_manual(values = c(0.5, 1.2), guide = "none") +
+  scale_colour_brewer(type = "div") +
+  scale_linetype_manual(values = c("solid", "dashed"), guide = "none") +
+  theme_classic(base_family = "Open Sans") +
+  theme(
+    text = element_text(size = 16),
+    axis.text.x = element_text(angle = 0, hjust = 1)
+  )
+
+# g_prop_vac_smooth_in_week
+
+ggsave(file = "prop_vac.png", path = OUTPUT_DIR, plot = g_prop_vac, type = "cairo-png", dpi = 300)
+ggsave(file = "prop_vac_in_week.png", path = OUTPUT_DIR, plot = g_prop_vac_in_week, type = "cairo-png", dpi = 300)
+ggsave(file = "prop_vac_smooth.png", path = OUTPUT_DIR, plot = g_prop_vac_smooth, type = "cairo-png", dpi = 300)
+ggsave(file = "prop_vac_smooth_in_week.png", path = OUTPUT_DIR, plot = g_prop_vac_smooth_in_week, type = "cairo-png", dpi = 300)
+```
+
+
+# Pre-specified analyses
+
+These analyses were registered at <https://osf.io/pkhae/>.
+
+## RQ0: Is there any effect of condition assignment?
+
+The following suggests that we have some evidence of differences among the messages:
+
+```{r rq0}
+## This is the asymptotic approx to the randomization inference
+rq0_asym <- cmh_test(vaccinatedF ~ messageF | date_sentF, data = wrkdat3, distribution = asymptotic())
+## This next is the permutation approx to the randomization inference
+set.seed(12345)
+rq0_perm <- cmh_test(vaccinatedF ~ messageF | date_sentF, data = wrkdat3, distribution = approximate(nresample = 10000, paralle = "multicore", ncpus = 4))
+
+rq0_asym
+rq0_perm
+pvalue(rq0_asym)
+thetab <- with(wrkdat3, table(messageF, vaccinatedF, date_sentF))
+
+rq0a <- mantelhaen.test(thetab)
+rq0a
+```
+
+## RQ1: Is there an effect of receiving a message as opposed to not receiving a message?
+
+The below shows little evidence of effect of "any message" versus "control".
+
+```{r rq1}
+rq1_asym <- cmh_test(vaccinatedF ~ not_controlF | date_sentF, data = wrkdat3, distribution = asymptotic())
+rq1_perm <- cmh_test(vaccinatedF ~ not_controlF | date_sentF, data = wrkdat3, distribution = approximate(nresample = 10000, paralle = "multicore", ncpus = 4))
+
+rq1_asym
+rq1_perm
+
+pvalue(rq1_asym)
+```
+
+We can show the estimated difference in proportion here:
+
+```{r rq1_est}
+rq1_est <- difference_in_means(vaccinated ~ not_controlF, blocks = date_sentF, data = wrkdat3)
+rq1_est
+rq1_week_est <- difference_in_means(vaccinated ~ not_controlF, blocks = iteration, data = wrkdat3)
+rq1_week_est
+
+lm_bin0 <- difference_in_means(vaccinated ~ not_control, blocks = date_sentF, data = wrkdat3)
+lm_bin1 <- lm_robust(vaccinated ~ not_control, data = wrkdat3, weights = nbwt_bin)
+lm_bin2 <- lm_robust(vaccinated ~ not_control, data = wrkdat3, weights = IPW_weight_bin)
+lm_bin1
+stopifnot(all.equal(lm_bin0$coef, lm_bin1$coef["not_control"]))
+stopifnot(all.equal(lm_bin0$coef, lm_bin2$coef["not_control"]))
+stopifnot(all.equal(lm_bin0$coef[[1]], rq1_est$coef[["not_controlF"]]))
+
+## Proportion vaccinated by end in the "not control" combination condition
+sum(coef(lm_bin1))
+
+```
+
+
+## RQ2: Does any given message differ from control (focal tests)?
+
+Overall, we have approx 2% of the control group getting vaccinated (weighted average across the days), and very
+small differences from that rate for each message --- all less than 1/3 pct point different
+in magnitude from the control group.
+
+```{r}
+rq2_est <- lm_robust(vaccinated ~ messageF, weights = IPW_weight_multarm, data = wrkdat3)
+rq2_est
+
+## In percentage point differences from messsage_0 (except for Intercept which is proportion vaccinated (on average, weighted by day) in message_0)
+zapsmall(rq2_est$coef * 100)
+
+## Adding the fixed effects estimates (biased, but more precise/statistically powerful)
+rq2_fe_est <- lm_robust(vaccinated ~ messageF, fixed_effects = ~date_sentF, data = wrkdat3)
+rq2_fe_est
+```
+
+The unadjusted tests tests of independence of each message versus control using
+permutation approximations to the randomization inference and the
+Cochrane-Mantel-Haenszel test for 2x2xK experiments show no differences between
+any message and control at $\alpha=.05$.
+
+```{r rq2_test}
+test_msgs <- function(msg1, msg2) {
+  ## msg1 and msg2 are strings indicating message assignment in messageF
+  effect_test <- cmh_test(vaccinatedF ~ messageF | date_sentF,
+    data = wrkdat3,
+    subset = wrkdat3$messageF %in% c(msg1, msg2),
+    distribution = approximate(nresample = 10000, parallel = "multicore", ncpu = 6)
+  )
+  return(pvalue(effect_test)[1])
+}
+
+message_test_ps <- sapply(levels(wrkdat3$messageF)[-1], function(msg) {
+  test_msgs("message_0", msg)
+})
+
+message_test_ps
+```
+
+We specified that we would report adjusted p-values, although it is hardly necessary since we are not reporting any discoveries.
+
+The FDR adjustments (direct and q-values):
+
+```{r}
+cbind(message_test_ps, fdr_adjusted = p.adjust(message_test_ps, method = "fdr"))
+```
+
+Here are the q-values (same as the "adjusted p-values" above) (not clearly worth diving into since we have no effects but including a link to an explanation here <https://www.bioconductor.org/packages/devel/bioc/vignettes/qvalue/inst/doc/qvalue.pdf>)
+
+```{r}
+library(qvalue)
+rq2_qvals <- qvalue(message_test_ps, lambda = seq(0.05, 0.65, 0.05))
+rq2_qvals$qvalues
+```
+
+A figure showing the results from rq2 estimation with 95% confidence intervals.
+
+```{r rq2plot}
+
+rq2plot_dat <- tidy(rq2_est)
+
+rq2plot_dat$term <- c("Control", paste("M", 1:8, " v Ctrl", sep = ""))
+
+rq2plot_dat$mtype <- c("Control", "Ownership", "Safety", "Preventing bad outcomes", "Epistemic humility+no bad outcomes", "Access", "Family concern", "Social proof", "Social proof+family concern")
+
+rq2plot_dat <- rq2plot_dat %>%
+  filter(term != "Control") %>%
+  arrange(estimate)
+rq2plot_dat$termF <- factor(rq2plot_dat$term, levels = rq2plot_dat$term)
+
+rq2xlim <- range(c(rq2plot_dat$conf.low, rq2plot_dat$conf.high))
+
+rq2plot <- ggplot(rq2plot_dat, aes(x = estimate, y = termF)) +
+  geom_vline(aes(xintercept = 0), color = "grey") +
+  geom_point() +
+  geom_errorbarh(mapping = aes(xmin = conf.low, xmax = conf.high), height = .2) +
+  xlab("Difference in Vaccination Proportion vs No Message (95% CI)") +
+  geom_text(aes(label = mtype), check_overlap = TRUE, nudge_y = .2, family = "Open Sans", size = 4.5) +
+  ylab("") +
+  theme_classic(base_family = "Open Sans") +
+  xlim(rq2xlim) +
+  theme(
+    text = element_text(size = 13),
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(angle = 0, hjust = 1)
+  )
+
+# print(rq2plot)
+```
+
+```{r saverq2plot}
+
+ggsave(file = "rq2plot.pdf", path = OUTPUT_DIR, plot = rq2plot, device = cairo_pdf)
+ggsave(file = "rq2plot.png", path = OUTPUT_DIR, plot = rq2plot, type = "cairo-png", dpi = 300)
+```
+
+```{r}
+include_graphics(here(OUTPUT_DIR,"rq2plot.pdf"))
+```
+
+
+## RQ3: Does epistemic humility help?
+
+Message 4 vs. 3 (CMH test, difference of proportions estimator). Only very small differences between those two arms.
+
+```{r rq3_est}
+rq3_est <- difference_in_means(vaccinated ~ messageF, blocks = date_sent, data = wrkdat3, subset = wrkdat3$messageF %in% c("message_3", "message_4"))
+rq3_est
+```
+
+```{r rq3_cmh}
+
+rq3_test <- test_msgs("message_3", "message_4")
+rq3_test
+```
+
+
+## RQ5: How do social proof and appeals to the family interact?
+
+We will test the overall hypothesis of no difference between 6 (family
+concern), 7 (social proof), and 8 (family concern + social proof). If we reject
+this, we test 6 versus 8 and 7 versus 8.
+
+
+```{r rq5}
+rq5_overall <- cmh_test(vaccinatedF ~ messageF | date_sentF, data = wrkdat3, subset = wrkdat3$messageF %in% c("message_6", "message_7", "message_8"))
+rq5_overall_perm <- cmh_test(vaccinatedF ~ messageF | date_sentF, data = wrkdat3, subset = wrkdat3$messageF %in% c("message_6", "message_7", "message_8"), distribution = approximate(nresample = 10000, parallel = "multicore", ncpus = 6))
+rq5_overall
+rq5_overall_perm
+```
+
+So, since we have a marginal rejection, we do the other tests. The differences are still quite small.
+
+```{r rq5a}
+
+test_msgs("message_6", "message_7")
+test_msgs("message_6", "message_8")
+test_msgs("message_7", "message_8")
+
+rq_5a_est <- difference_in_means(vaccinated ~ messageF, blocks = date_sent, data = wrkdat3, subset = wrkdat3$messageF %in% c("message_6", "message_7"))
+rq_5b_est <- difference_in_means(vaccinated ~ messageF, blocks = date_sent, data = wrkdat3, subset = wrkdat3$messageF %in% c("message_6", "message_8"))
+rq_5c_est <- difference_in_means(vaccinated ~ messageF, blocks = date_sent, data = wrkdat3, subset = wrkdat3$messageF %in% c("message_7", "message_8"))
+
+rq_5a_est
+rq_5b_est
+rq_5c_est
+```
+
+
+## RQ6: Did adaptive randomization increase vaccinations over fixed randomization?
+We also will report the effect of using adaptive randomization versus fixed randomization on total vaccinations –- since we withheld 25% of each of the three weeks experimental pools for fixed randomization and adapted the other 100 – 25%. Our aim in this study was to (1) learn about which messages worked best but also (2) increase vaccination. The fixed randomization maximized statistical power to detect effects whereas the adaptive randomization increased the numbers of people exposed to more effective messages.
+
+It looks like slightly more people were vaccinated in the non-adaptive arm of the study.
+
+```{r rq6}
+with(wrkdat3, table(date_sent, is_chosen_from_uniform, exclude = c()))
+rq6_est <- difference_in_means(vaccinated ~ is_chosen_from_uniform, blocks = date_sentF, data = wrkdat3, subset = wrkdat3$date_sent >= "2021-06-02")
+rq6_est
+
+rq6_cmh_perm <- cmh_test(vaccinatedF ~ factor(is_chosen_from_uniform) | date_sentF, data = wrkdat3, subset = wrkdat3$date_sent >= "2021-06-02", distribution = approximate(nresample = 10000, parallel = "multicore", ncpus = 6))
+rq6_cmh_perm
+```
+
+
+# Exploratory Analyses Not Pre-registered
+
+## Effects on vaccination within a week
+The experiment ran during a time of national campaigns in favor of vaccination. The control group in our experiment would have been exposed to this, and thus, might have gotten vaccinated for reasons other than a nudge from a text message.
+
+No strong evidence that people were likely to be vaccinated within a week in "any message" versus control or versus any given message.
+
+```{r rq7}
+rq7_test <- cmh_test(vac_in_weekF ~ not_controlF | date_sentF, data = wrkdat3)
+rq7_test
+```
+
+```{r rq7a}
+rq7a_test <- cmh_test(vac_in_weekF ~ messageF | date_sentF, data = wrkdat3)
+rq7a_test
+
+rq7a_est <- lm_robust(vac_in_week ~ messageF, weights = IPW_weight_multarm, data = wrkdat3)
+rq7a_est
+```
+
+
+```{r rq7plot}
+
+rq7plot_dat <- tidy(rq7a_est)
+
+rq7plot_dat$term <- c("Control", paste("M", 1:8, " v Ctrl", sep = ""))
+
+rq7plot_dat$mtype <- c("Control", "Ownership", "Safety", "Preventing bad outcomes", "Epistemic humility+no bad outcomes", "Access", "Family concern", "Social proof", "Social proof+family concern")
+
+rq7plot_dat <- rq7plot_dat %>% filter(term != "Control")
+rq7plot_dat$termF <- factor(rq7plot_dat$term, levels = rq2plot_dat$term)
+with(rq7plot_dat, table(term, termF, exclude = c()))
+
+rq7plot <- ggplot(rq7plot_dat, aes(x = estimate, y = termF)) +
+  geom_vline(aes(xintercept = 0), color = "grey") +
+  geom_point() +
+  geom_errorbarh(mapping = aes(xmin = conf.low, xmax = conf.high), height = .2) +
+  xlab("Difference in Vaccination Proportion vs No Message within a Week (95% CI)") +
+  geom_text(aes(label = mtype), check_overlap = TRUE, nudge_y = .2, family = "Open Sans", size = 4.5) +
+  ylab("") +
+  theme_classic(base_family = "Open Sans") +
+  xlim(rq2xlim) +
+  theme(
+    text = element_text(size = 13),
+    axis.line.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(angle = 0, hjust = 1)
+  )
+
+# print(rq7plot)
+```
+
+```{r saverq7plot}
+
+ggsave(file = "rq7plot.pdf", path = OUTPUT_DIR, plot = rq7plot, device = cairo_pdf)
+ggsave(file = "rq7plot.png", path = OUTPUT_DIR, plot = rq7plot, type = "cairo-png", dpi = 300)
+```
+
+```{r combineplots}
+
+
+rq2_rq7_plot <- ggarrange(rq2plot, rq7plot, nrow = 1)
+# print(rq2_rq7_plot)
+
+ggsave(file = "rq2_rq7_plot.pdf", path = OUTPUT_DIR, plot = rq2_rq7_plot, device = cairo_pdf, width = 12, height = 6)
+ggsave(file = "rq2_rq7_plot.png", path = OUTPUT_DIR, plot = rq2_rq7_plot, type = "cairo-png", dpi = 300, width = 12, height = 6)
+```
+
+
+## Each iteration separately
+
+We looked at both overall vaccination and vaccination within a week (only
+available for those assigned in the first week). The following table shows that
+we have no strong arguments against the claim that our messages were the same
+as control in regards either outcome. (Not adjusting p-values here because this
+is exploratory work and because we have so few small p-values).
+
+```{r}
+
+test_msgs2 <- function(msg1, msg2, the_iteration, thefmla = vaccinatedF ~ messageF | date_sentF) {
+  ## msg1 and msg2 are strings indicating message assignment in messageF
+  effect_test <- cmh_test(thefmla,
+    data = wrkdat3,
+    subset = wrkdat3$messageF %in% c(msg1, msg2) & wrkdat3$iteration == the_iteration,
+    distribution = asymptotic() # approximate(nresample = 10000, parallel = "multicore", ncpu = 6)
+  )
+  return(pvalue(effect_test)[1])
+}
+
+msg_by_iteration <- as_tibble(expand.grid(iteration = 1:3, messageF = levels(wrkdat3$messageF)[-1], stringsAsFactors = FALSE))
+
+test_msgs2(msg1 = "message_0", msg2 = msg_by_iteration$messageF[1], the_iteration = 3)
+
+set.seed(12345)
+msg_by_iteration <- msg_by_iteration %>%
+  rowwise() %>%
+  mutate(p_vs_ctrl = test_msgs2("message_0", messageF, iteration)) %>%
+  arrange(iteration, messageF)
+
+msg_by_iteration <- msg_by_iteration %>%
+  rowwise() %>%
+  mutate(p_vac_week_vs_ctrl = test_msgs2("message_0", messageF, iteration, thefmla = vac_in_weekF ~ messageF | date_sentF))
+
+msg_by_iteration <- msg_by_iteration %>% mutate(p_vac_week_vs_ctrl = ifelse(p_vac_week_vs_ctrl == p_vs_ctrl, NA, p_vac_week_vs_ctrl))
+print(msg_by_iteration, n = 100)
+```
+
+Nor is there strong evidence that "any message" was better than control, even when we assess the relationships for each iteration separately:
+
+```{r}
+rq8_iteration1_test <- cmh_test(vaccinatedF ~ not_controlF | date_sentF, data = wrkdat3, subset = wrkdat3$iteration == 1)
+rq8_iteration1_test
+rq8_iteration2_test <- cmh_test(vaccinatedF ~ not_controlF | date_sentF, data = wrkdat3, subset = wrkdat3$iteration == 2)
+rq8_iteration2_test
+rq8_iteration3_test <- cmh_test(vaccinatedF ~ not_controlF | date_sentF, data = wrkdat3, subset = wrkdat3$iteration == 3)
+rq8_iteration3_test
+
+## Also looking at vaccinations within a week for the first iteration
+rq9_iteration1_test <- cmh_test(vac_in_weekF ~ not_controlF | date_sentF, data = wrkdat3, subset = wrkdat3$iteration == 1)
+rq9_iteration1_test
+rq9_iteration2_test <- cmh_test(vac_in_weekF ~ not_controlF | date_sentF, data = wrkdat3, subset = wrkdat3$iteration == 2)
+rq9_iteration2_test
+rq9_iteration3_test <- cmh_test(vac_in_weekF ~ not_controlF | date_sentF, data = wrkdat3, subset = wrkdat3$iteration == 3)
+rq9_iteration3_test
+```
+
+
+# Exploratory Analyses Pre-registered
+
+These analysis all compare effects of messages as they might vary for people
+who live in different kinds of places (using ZCTA as the place).
+
+## EQ1: Do explicit appeals to the safety of vaccines increase responses in areas with higher proportions of Black or Latinx people? Message 2 vs. control
+
+We cannot detect any simple linear differential effect of pct black or latinx on the message 2 versus control comparison.
+
+```{r eq1}
+wrkdat3_eq1 <- wrkdat3 %>%
+  filter(messageF %in% c("message_0", "message_2") & zcta != "00000") %>%
+  droplevels()
+dim(wrkdat3_eq1)
+table(wrkdat3_eq1$date_sent, wrkdat3_eq1$messageF, exclude = c())
+
+make_weights <- function(dat) {
+  block_m_each <- with(dat, table(date_sentF, messageF, exclude = c()))
+  block_prob_each <- block_m_each / rowSums(block_m_each)
+  declared_randomization <- declare_ra(blocks = dat$date_sentF, block_m_each = block_m_each, conditions = sort(unique(dat$messageF)))
+  IPW_weight <- 1 / obtain_condition_probabilities(declaration = declared_randomization, assignment = dat$messageF)
+  stopifnot(all.equal(sort(unique(1 / IPW_weight)), sort(unique(block_prob_each))))
+  return(IPW_weight)
+}
+
+wrkdat3_eq1$IPW_eq1 <- make_weights(wrkdat3_eq1)
+## So, good that I didn't use the multi-arm weights.
+with(wrkdat3_eq1, cor(IPW_eq1, IPW_weight_multarm))
+
+eq1_blk_estA <- lm_robust(vaccinated ~ messageF * pct_any_blk, data = wrkdat3_eq1, weights = IPW_eq1)
+## Just including Fixed Effects for curiosity. We will report estA
+eq1_blk_estB <- lm_robust(vaccinated ~ messageF * pct_any_blk, data = wrkdat3_eq1, fixed_effects = ~date_sentF)
+
+eq1_blk_estA
+eq1_blk_estB
+
+eq1_lat_estA <- lm_robust(vaccinated ~ messageF * pct_hisp, data = wrkdat3_eq1, weights = IPW_eq1)
+## Just including Fixed Effects for curiosity. We will report estA
+eq1_lat_estB <- lm_robust(vaccinated ~ messageF * pct_hisp, data = wrkdat3_eq1, fixed_effects = ~date_sentF)
+
+eq1_lat_estA
+eq1_lat_estB
+```
+
+
+## EQ2: Does the implication of choice through emphasis on a conspicuous advantage increase responses in areas with higher proportions of Republican people? Message 3 vs. control
+
+No detectable difference in effects.
+
+```{r eq2}
+wrkdat3_eq2 <- wrkdat3 %>%
+  filter(messageF %in% c("message_0", "message_3") & zcta != "00000") %>%
+  droplevels()
+dim(wrkdat3_eq2)
+table(wrkdat3_eq2$date_sent, wrkdat3_eq2$messageF, exclude = c())
+
+wrkdat3_eq2$IPW_eq2 <- make_weights(wrkdat3_eq2)
+
+eq2_gop_estA <- lm_robust(vaccinated ~ messageF * pct_gop, data = wrkdat3_eq2, weights = IPW_eq2)
+## Just including Fixed Effects for curiosity. We will report estA
+eq2_gop_estB <- lm_robust(vaccinated ~ messageF * pct_gop, data = wrkdat3_eq2, fixed_effects = ~date_sentF)
+
+eq2_gop_estA
+eq2_gop_estB
+```
+
+## EQ3: Do explicit appeals to ease of access increase responses in areas with higher proportions of Black or Latinx people? Message 5 vs. control
+
+No detectable differences. Magnitude of moderation is large-ish given this phenomenon (on order of 1 or 2 pts, but negative).
+
+```{r eq3}
+wrkdat3_eq3 <- wrkdat3 %>%
+  filter(messageF %in% c("message_0", "message_5") & zcta != "00000") %>%
+  droplevels()
+dim(wrkdat3_eq3)
+table(wrkdat3_eq3$date_sent, wrkdat3_eq3$messageF, exclude = c())
+
+wrkdat3_eq3$IPW_eq3 <- make_weights(wrkdat3_eq3)
+
+eq3_blk_estA <- lm_robust(vaccinated ~ messageF * pct_any_blk, data = wrkdat3_eq3, weights = IPW_eq3)
+## Just including Fixed Effects for curiosity. We will report estA
+eq3_blk_estB <- lm_robust(vaccinated ~ messageF * pct_any_blk, data = wrkdat3_eq3, fixed_effects = ~date_sentF)
+eq3_blk_estA
+eq3_blk_estB
+eq3_lat_estA <- lm_robust(vaccinated ~ messageF * pct_hisp, data = wrkdat3_eq3, weights = IPW_eq3)
+## Just including Fixed Effects for curiosity. We will report estA
+eq3_lat_estB <- lm_robust(vaccinated ~ messageF * pct_hisp, data = wrkdat3_eq3, fixed_effects = ~date_sentF)
+eq3_lat_estA
+eq3_lat_estB
+```
+
+## EQ4: Does epistemic humility increase responses in areas with higher proportions of either Black or Latinx people or Republican people? Message 4 versus 3
+
+No detectable differences in effect.
+
+```{r eq4}
+wrkdat3_eq4 <- wrkdat3 %>%
+  filter(messageF %in% c("message_3", "message_4") & zcta != "00000") %>%
+  droplevels()
+dim(wrkdat3_eq4)
+table(wrkdat3_eq4$date_sent, wrkdat3_eq4$messageF, exclude = c())
+
+wrkdat3_eq4$IPW_eq4 <- make_weights(wrkdat3_eq4)
+
+eq4_gop_estA <- lm_robust(vaccinated ~ messageF * pct_gop, data = wrkdat3_eq4, weights = IPW_eq4)
+## Just including Fixed Effects for curiosity. We will report estA
+eq4_gop_estB <- lm_robust(vaccinated ~ messageF * pct_gop, data = wrkdat3_eq4, fixed_effects = ~date_sentF)
+eq4_gop_estA
+eq4_gop_estB
+eq4_blk_estA <- lm_robust(vaccinated ~ messageF * pct_any_blk, data = wrkdat3_eq4, weights = IPW_eq4)
+## Just including Fixed Effects for curiosity. We will report estA
+eq4_blk_estB <- lm_robust(vaccinated ~ messageF * pct_any_blk, data = wrkdat3_eq4, fixed_effects = ~date_sentF)
+eq4_blk_estA
+eq4_blk_estB
+eq4_lat_estA <- lm_robust(vaccinated ~ messageF * pct_hisp, data = wrkdat3_eq4, weights = IPW_eq4)
+## Just including Fixed Effects for curiosity. We will report estA
+eq4_lat_estB <- lm_robust(vaccinated ~ messageF * pct_hisp, data = wrkdat3_eq4, fixed_effects = ~date_sentF)
+eq4_lat_estA
+eq4_lat_estB
+```
+
+## EQ5: Is there a day-of-week effect? Proportions of vaccinations collapsed across all messages by day.
+
+Since the randomization to message occurred **within day** and we have
+relatively few weeks, it is difficult to disentangle day of week effects from
+date effects. So, we only present descriptive information here.
+
+```{r}
+summary(wrkdat3$date_sent)
+table(weekdays(wrkdat3$date_sent))
+
+wrkdat3$weekday_sent <- weekdays(wrkdat3$date_sent)
+
+wrkdat3_weekday <- wrkdat3 %>%
+  group_by(weekday_sent) %>%
+  summarize(
+    prop_vac = mean(vaccinated),
+    prop_vac_in_week = mean(vac_in_week), nweek = n()
+  )
+
+wrkdat3_weekday
+```
+
+
+## EQ6: Is there an iteration effect? Some people were randomly assigned to have 3 weeks to schedule a vaccination and others only 1 week before the study ended. We explore whether there is a difference here.
+
+We addressed this analysis above in our analysis by day of week and iteration.
+
+
+

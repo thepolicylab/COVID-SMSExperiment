@@ -1,0 +1,100 @@
+IDL_Phone,test_history,age,zip_idl,muni_idl,race_eth_final,sex_idl,SF_Primary_Language__c_case
+(401) 555-5555,Negative,83,2852.0,newport,0.Hispanic or Latino (any race),U,English
+,Negative,63,2903.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,76,2864.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,85,2879.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),U,English
+(401) 555-5555,Negative,65,2895.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,61,2895.0,providence,9.Unknown or pending further information,M,English
+,Negative,77,2908.0,exeter,9.Unknown or pending further information,M,English
+(401) 555-5555,Negative,63,2909.0,north providence,3.Black or African American (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,87,2909.0,woonsocket,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,66,2908.0,cumberland,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,88,2909.0,cumberland,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,89,2859.0,providence,9.Unknown or pending further information,U,English
+(401) 555-5555,Negative,63,2915.0,cumberland,8.Declined race (non-Hispanic or ethnicity unknown or declined),M,English
+,Negative,95,2907.0,pawtucket,5.White (non-Hispanic or ethnicity unknown or declined),F,
+(401) 555-5555,Negative,78,2895.0,providence,3.Black or African American (non-Hispanic or ethnicity unknown or declined),M,Spanish
+(401) 555-5555,Negative,61,2919.0,providence,9.Unknown or pending further information,M,English
+,Negative,72,2822.0,providence,9.Unknown or pending further information,M,English
+(401) 555-5555,Negative,62,2889.0,pawtucket,0.Hispanic or Latino (any race),U,English
+(401) 555-5555,Negative,66,2861.0,narragansett,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,79,2863.0,cranston,5.White (non-Hispanic or ethnicity unknown or declined),U,English
+,Negative,61,2908.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,68,2864.0,east providence,0.Hispanic or Latino (any race),M,English
+(401) 555-5555,Negative,88,2914.0,middletown,0.Hispanic or Latino (any race),F,English
+(401) 555-5555,Negative,68,2865.0,providence,9.Unknown or pending further information,M,Spanish
+(401) 555-5555,Negative,60,2909.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,81,2861.0,south kingstown,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+,Negative,83,2895.0,providence,0.Hispanic or Latino (any race),M,English
+(401) 555-5555,Negative,71,2864.0,pawtucket,9.Unknown or pending further information,M,
+(401) 555-5555,Negative,66,2859.0,woonsocket,9.Unknown or pending further information,M,English
+(401) 555-5555,Negative,85,2908.0,pawtucket,0.Hispanic or Latino (any race),M,English
+,Negative,68,2907.0,woonsocket,5.White (non-Hispanic or ethnicity unknown or declined),U,English
+(401) 555-5555,Negative,80,2898.0,providence,0.Hispanic or Latino (any race),M,English
+,Negative,74,2828.0,north providence,0.Hispanic or Latino (any race),U,Spanish
+,Negative,78,2908.0,warwick,5.White (non-Hispanic or ethnicity unknown or declined),U,English
+,Negative,77,2919.0,providence,3.Black or African American (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,82,2908.0,providence,9.Unknown or pending further information,F,English
+(401) 555-5555,Negative,66,2860.0,woonsocket,3.Black or African American (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,64,2895.0,smithfield,0.Hispanic or Latino (any race),F,English
+,Negative,77,2886.0,warwick,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,61,2859.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),F,Spanish
+(401) 555-5555,Negative,61,2864.0,smithfield,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,67,2921.0,providence,0.Hispanic or Latino (any race),M,English
+,Negative,82,2903.0,providence,0.Hispanic or Latino (any race),M,English
+(401) 555-5555,Negative,73,2812.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,81,2919.0,lincoln,3.Black or African American (non-Hispanic or ethnicity unknown or declined),M,English
+,Negative,74,2907.0,woonsocket,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,85,2908.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),U,English
+(401) 555-5555,Negative,61,2907.0,burrillville,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+,Negative,72,2909.0,johnston,9.Unknown or pending further information,U,English
+(401) 555-5555,Negative,63,2909.0,providence,3.Black or African American (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,84,2822.0,providence,3.Black or African American (non-Hispanic or ethnicity unknown or declined),U,English
+(401) 555-5555,Negative,87,2919.0,johnston,9.Unknown or pending further information,M,English
+(401) 555-5555,Negative,61,2907.0,smithfield,9.Unknown or pending further information,M,Spanish
+(401) 555-5555,Negative,61,2904.0,east providence,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+,Negative,82,2908.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,61,2909.0,johnston,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+,Negative,76,2908.0,east providence,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,61,2860.0,providence,3.Black or African American (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,86,2908.0,pawtucket,9.Unknown or pending further information,M,English
+,Negative,74,2865.0,pawtucket,0.Hispanic or Latino (any race),U,English
+(401) 555-5555,Negative,68,2904.0,north kingstown,6.Other race (non-Hispanic or ethnicity unknown or declined),U,English
+,Negative,80,2842.0,cranston,9.Unknown or pending further information,F,English
+(401) 555-5555,Negative,98,2864.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,63,2840.0,hopkinton,8.Declined race (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,76,2915.0,woonsocket,3.Black or African American (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,67,2882.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),F,Spanish
+(401) 555-5555,Negative,94,2909.0,providence,0.Hispanic or Latino (any race),U,English
+(401) 555-5555,Negative,70,2861.0,middletown,9.Unknown or pending further information,F,English
+,Negative,88,2904.0,richmond,3.Black or African American (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,63,2863.0,woonsocket,9.Unknown or pending further information,M,English
+(401) 555-5555,Negative,74,2861.0,richmond,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,78,2893.0,lincoln,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+,Negative,65,2906.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,89,2908.0,burrillville,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,62,2860.0,smithfield,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,61,2828.0,providence,0.Hispanic or Latino (any race),F,English
+(401) 555-5555,Negative,80,2860.0,burrillville,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,70,2919.0,providence,0.Hispanic or Latino (any race),F,English
+(401) 555-5555,Negative,63,2895.0,central falls,3.Black or African American (non-Hispanic or ethnicity unknown or declined),F,English
+,Negative,99,2818.0,woonsocket,9.Unknown or pending further information,F,English
+,Negative,77,2895.0,woonsocket,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,78,2895.0,east greenwich,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,86,2832.0,cumberland,5.White (non-Hispanic or ethnicity unknown or declined),F,Spanish
+(401) 555-5555,Negative,74,2828.0,east providence,0.Hispanic or Latino (any race),M,
+,Negative,90,2864.0,central falls,0.Hispanic or Latino (any race),M,English
+(401) 555-5555,Negative,63,2907.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,85,,cumberland,0.Hispanic or Latino (any race),F,English
+(401) 555-5555,Negative,71,2909.0,providence,5.White (non-Hispanic or ethnicity unknown or declined),U,English
+(401) 555-5555,Negative,73,2920.0,providence,9.Unknown or pending further information,M,English
+(401) 555-5555,Negative,64,2828.0,cumberland,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,63,2863.0,central falls,0.Hispanic or Latino (any race),U,English
+(401) 555-5555,Negative,66,2895.0,south kingstown,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,86,2842.0,west warwick,9.Unknown or pending further information,F,English
+(401) 555-5555,Negative,61,2908.0,exeter,5.White (non-Hispanic or ethnicity unknown or declined),M,English
+(401) 555-5555,Negative,63,2915.0,johnston,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,78,2903.0,cumberland,5.White (non-Hispanic or ethnicity unknown or declined),F,English
+(401) 555-5555,Negative,73,2879.0,johnston,9.Unknown or pending further information,M,English
+(401) 555-5555,Negative,83,2816.0,coventry,0.Hispanic or Latino (any race),M,English
+(401) 555-5555,Negative,86,2903.0,pawtucket,5.White (non-Hispanic or ethnicity unknown or declined),F,English
