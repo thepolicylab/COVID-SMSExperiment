@@ -1,4 +1,10 @@
-# Thompson Sampling for RI Text Messages
+# RI COVID Vaccination Text Messages Experiment, May--Jun 2021
+
+## Overview
+
+If you work for The Policy Lab and have access to `final_data_one_line_per_individual.csv`, then `make all` should recreate all of the results after you setup the python and R environments as described below. We do not share this file on github because it contains potentially personally identifying information.
+
+However, if you want to go beyond inspecting our code and would like to play with some data (just not the ZCTA level data), you can do so by editing `020_effects_on_vaccinations.Rmd` to ignore `final_data_one_line_per_individual.csv` and instead to use `dat_indiv.csv` which is built from aggregated counts. If you have trouble doing so, feel free to leave an Issue here and someone from The Policy Lab should respond.
 
 ## Requirements
 
