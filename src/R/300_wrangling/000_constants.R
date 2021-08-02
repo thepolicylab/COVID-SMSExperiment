@@ -1,3 +1,3 @@
 library(here)
 
-DATA_DIR <- here("data", "unvax_data", "output")
+DATA_DIR <- here("data")
