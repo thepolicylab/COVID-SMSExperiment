@@ -408,7 +408,9 @@ g3 <- plotdat1 %>%
   xlab("Proportion Vaccinated") +
   ylab("")
 
-plot1 <- ggarrange(g1, g2, g3, nrow = 3, labels = c("Iteration 1", "Iteration 2", "Iteration 3"))
+plot1 <- ggarrange(g1+theme(text=element_text(size=14)),
+    g2+theme(text=element_text(size=14)),
+    g3+theme(text=element_text(size=14)), nrow = 3, labels = c("Iteration 1", "Iteration 2", "Iteration 3"))
 # print(plot1)
 ggsave(file = "day_by_day_plot.pdf", path = OUTPUT_DIR, plot = plot1, device = cairo_pdf, width = 8, height = 6)
 ggsave(file = "day_by_day_plot.png", path = OUTPUT_DIR, plot = plot1, type = "cairo-png", dpi = 300, width = 8, height = 6)
@@ -700,12 +702,16 @@ rq2plot_dat$term <- c("Control", paste("M", 1:8, " v Ctrl", sep = ""))
 
 rq2plot_dat$mtype <- c("Control", "Ownership", "Safety", "Preventing bad outcomes", "Epistemic humility+no bad outcomes", "Access", "Family concern", "Social proof", "Social proof+family concern")
 
+total_n_by_arm <- table(wrkdat3$messageF)
+rq2plot_dat$n_arm <- total_n_by_arm
+
+
 rq2plot_dat <- rq2plot_dat %>%
   filter(term != "Control") %>%
   arrange(estimate)
 rq2plot_dat$termF <- factor(rq2plot_dat$term, levels = rq2plot_dat$term)
 
-rq2xlim <- range(c(rq2plot_dat$conf.low, rq2plot_dat$conf.high))
+rq2xlim <- range(c(rq2plot_dat$conf.low, rq2plot_dat$conf.high+.001))
 
 rq2plot <- ggplot(rq2plot_dat, aes(x = estimate, y = termF)) +
   geom_vline(aes(xintercept = 0), color = "grey") +
@@ -713,11 +719,12 @@ rq2plot <- ggplot(rq2plot_dat, aes(x = estimate, y = termF)) +
   geom_errorbarh(mapping = aes(xmin = conf.low, xmax = conf.high), height = .2) +
   xlab("Difference in Vaccination Proportion vs No Message (95% CI)") +
   geom_text(aes(label = mtype), check_overlap = TRUE, nudge_y = .2, family = "Open Sans", size = 4.5) +
+  geom_text(aes(label=paste("n=",n_arm,sep=""),x=conf.high),check_overlap = TRUE, nudge_x=.001, family = "Open Sans", size = 4) +
   ylab("") +
   theme_classic(base_family = "Open Sans") +
   xlim(rq2xlim) +
   theme(
-    text = element_text(size = 13),
+    text = element_text(size = 16),
     axis.line.y = element_blank(),
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
@@ -830,6 +837,9 @@ rq7plot_dat$term <- c("Control", paste("M", 1:8, " v Ctrl", sep = ""))
 
 rq7plot_dat$mtype <- c("Control", "Ownership", "Safety", "Preventing bad outcomes", "Epistemic humility+no bad outcomes", "Access", "Family concern", "Social proof", "Social proof+family concern")
 
+total_n_by_arm <- table(wrkdat3$messageF)
+rq7plot_dat$n_arm <- total_n_by_arm
+
 rq7plot_dat <- rq7plot_dat %>% filter(term != "Control")
 rq7plot_dat$termF <- factor(rq7plot_dat$term, levels = rq2plot_dat$term)
 with(rq7plot_dat, table(term, termF, exclude = c()))
@@ -844,14 +854,14 @@ rq7plot <- ggplot(rq7plot_dat, aes(x = estimate, y = termF)) +
   theme_classic(base_family = "Open Sans") +
   xlim(rq2xlim) +
   theme(
-    text = element_text(size = 13),
+    text = element_text(size = 16),
     axis.line.y = element_blank(),
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
     axis.text.x = element_text(angle = 0, hjust = 1)
   )
 
-# print(rq7plot)
+#print(rq7plot)
 ```
 
 ```{r saverq7plot}
@@ -1078,4 +1088,19 @@ wrkdat3_weekday
 We addressed this analysis above in our analysis by day of week and iteration.
 
 
+# Housekeeping
+
+Combining three plots into one:
+
+
+```{r}
+
+combined_plot <- ggarrange(rq2_rq7_plot,NULL, plot1, nrow = 3,ncol=1, heights=c(1,.1,1),widths=c(1,1,1),align="hv")
+#print(combined_plot)
+
+ggsave(file = "combined_plot.pdf", path = OUTPUT_DIR, plot = combined_plot, device = cairo_pdf, width = 18, height = 18)
+ggsave(file = "combined_plot.png", path = OUTPUT_DIR, plot = combined_plot, type = "cairo-png", dpi = 300, width = 18, height = 18)
+
+
+```
 
