@@ -34,4 +34,9 @@ $(R_OUTPUT_DIR)/effects_on_vaccinations.docx: $(DATA_DIR)/dat_indiv.csv \
 	$(R_ANALYSIS_DIR)/020_effects_on_vaccinations.Rmd
 	Rscript -e "library(rmarkdown); render('src/R/400_analysis/020_effects_on_vaccinations.Rmd',output_format=word_document())" && mv $(R_ANALYSIS_DIR)/020_effects_on_vaccinations.docx $(R_OUTPUT_DIR)/effects_on_vaccinations.docx
 
+## Figures created within 020_effects_on_vaccinations.Rmd
+$(R_OUTPUT_DIR)/rq2_rq7_plot.pdf: $(R_OUTPUT_DIR)/effects_on_vaccinations.pdf
+$(R_OUTPUT_DIR)/day_by_day_plot.pdf: $(R_OUTPUT_DIR)/effects_on_vaccinations.pdf
+$(R_OUTPUT_DIR)/combined_plot.pdf: $(R_OUTPUT_DIR)/effects_on_vaccinations.pdf
+
 all: $(DATA_DIR)/dat_indiv.csv $(R_OUTPUT_DIR)/effects_on_vaccinations.pdf $(R_OUTPUT_DIR)/effects_on_vaccinations.docx
