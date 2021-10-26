@@ -370,6 +370,17 @@ with(plotdat1, table(mtype, messageF, exclude = c()))
 with(plotdat1, table(mtypeF, messageF, exclude = c()))
 ```
 
+Simple description of total vaccinations and total assignments to arm ---
+ignoring day-by-day design. Just to simply learn about how many vaccinations
+occurred.
+
+```{r}
+plotdat1 %>% group_by(mtype) %>% summarize(tot_vac=sum(nvac),tot_n=sum(N),prop_vac=tot_vac/tot_n)
+
+
+```
+
+
 ```{r plot1, echo=FALSE, out.width=".9\\textwidth"}
 g1 <- plotdat1 %>%
   filter(iteration == 1) %>%
@@ -408,9 +419,11 @@ g3 <- plotdat1 %>%
   xlab("Proportion Vaccinated") +
   ylab("")
 
-plot1 <- ggarrange(g1+theme(text=element_text(size=14)),
-    g2+theme(text=element_text(size=14)),
-    g3+theme(text=element_text(size=14)), nrow = 3, labels = c("Iteration 1", "Iteration 2", "Iteration 3"))
+plot1 <-
+    ggarrange(g1+theme(text=element_text(size=14),axis.text.x=element_text(size=10)),
+    g2+theme(text=element_text(size=14),axis.text.x=element_text(size=8)),
+    g3+theme(text=element_text(size=14),axis.text.x=element_text(size=10)), 
+    nrow = 3, labels = c("Iteration 1", "Iteration 2", "Iteration 3"))
 # print(plot1)
 ggsave(file = "day_by_day_plot.pdf", path = OUTPUT_DIR, plot = plot1, device = cairo_pdf, width = 8, height = 6)
 ggsave(file = "day_by_day_plot.png", path = OUTPUT_DIR, plot = plot1, type = "cairo-png", dpi = 300, width = 8, height = 6)
@@ -725,6 +738,7 @@ rq2plot <- ggplot(rq2plot_dat, aes(x = estimate, y = termF)) +
   xlim(rq2xlim) +
   theme(
     text = element_text(size = 16),
+    axis.title=element_text(size=14),
     axis.line.y = element_blank(),
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
@@ -855,6 +869,7 @@ rq7plot <- ggplot(rq7plot_dat, aes(x = estimate, y = termF)) +
   xlim(rq2xlim) +
   theme(
     text = element_text(size = 16),
+    axis.title=element_text(size=14),
     axis.line.y = element_blank(),
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
@@ -871,12 +886,10 @@ ggsave(file = "rq7plot.png", path = OUTPUT_DIR, plot = rq7plot, type = "cairo-pn
 ```
 
 ```{r combineplots}
-
-
 rq2_rq7_plot <- ggarrange(rq2plot, rq7plot, nrow = 1)
 # print(rq2_rq7_plot)
 
-ggsave(file = "rq2_rq7_plot.pdf", path = OUTPUT_DIR, plot = rq2_rq7_plot, device = cairo_pdf, width = 12, height = 6)
+ggsave(file = "rq2_rq7_plot.pdf", path = OUTPUT_DIR, plot = rq2_rq7_plot, device = cairo_pdf, width = 13, height = 6)
 ggsave(file = "rq2_rq7_plot.png", path = OUTPUT_DIR, plot = rq2_rq7_plot, type = "cairo-png", dpi = 300, width = 12, height = 6)
 ```
 
