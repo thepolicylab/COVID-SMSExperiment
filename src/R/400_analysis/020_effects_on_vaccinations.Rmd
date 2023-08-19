@@ -43,6 +43,10 @@ library(ggpubr)
 wrkdat <- read_csv(file.path(DATA_DIR, "dat_indiv.csv"))
 ## This next makes an error in case the original data changed. Mostly to make us pay attention.
 stopifnot(nrow(wrkdat) == 158103)
+```
+
+```{r readotherdata, eval=FALSE}
+```
 
 ## The latest file from Kevin
 wrkdat2 <- read_csv(file.path(DATA_DIR, "final_data_one_line_per_individual.csv"))
@@ -106,6 +110,8 @@ whether there are changes in assignment probabilities between blocks or not.
 We drop observations assigned to be sent a message on June 15, 2021 because those messages were not sent and because people were assigned to that date at random.
 
 ```{r dropjune15}
+## Using the individual level data created from the aggregated files (so, without ability to identify anyone).
+wrkdat3 <- wrkdat
 wrkdat3 <- wrkdat3 %>%
   filter(date_sent < "2021-06-15") %>%
   droplevels()
@@ -961,7 +967,8 @@ who live in different kinds of places (using ZCTA as the place).
 
 We cannot detect any simple linear differential effect of pct black or latinx on the message 2 versus control comparison.
 
-```{r eq1}
+```{r eq1, eval=FALSE}
+## Don't run because we don't have ZCTA merged onto the aggregated data.
 wrkdat3_eq1 <- wrkdat3 %>%
   filter(messageF %in% c("message_0", "message_2") & zcta != "00000") %>%
   droplevels()
@@ -1001,9 +1008,10 @@ eq1_lat_estB
 
 No detectable difference in effects.
 
-```{r eq2}
+```{r eq2, eval=FALSE}
+## Don't run because we don't have ZCTA merged onto the aggregated data.
 wrkdat3_eq2 <- wrkdat3 %>%
-  filter(messageF %in% c("message_0", "message_3") & zcta != "00000") %>%
+   filter(messageF %in% c("message_0", "message_3") & zcta != "00000") %>%
   droplevels()
 dim(wrkdat3_eq2)
 table(wrkdat3_eq2$date_sent, wrkdat3_eq2$messageF, exclude = c())
@@ -1022,7 +1030,8 @@ eq2_gop_estB
 
 No detectable differences. Magnitude of moderation is large-ish given this phenomenon (on order of 1 or 2 pts, but negative).
 
-```{r eq3}
+```{r eq3, eval=FALSE}
+## Don't run because we don't have ZCTA merged onto the aggregated data.
 wrkdat3_eq3 <- wrkdat3 %>%
   filter(messageF %in% c("message_0", "message_5") & zcta != "00000") %>%
   droplevels()
@@ -1047,7 +1056,8 @@ eq3_lat_estB
 
 No detectable differences in effect.
 
-```{r eq4}
+```{r eq4, eval=FALSE}
+## Don't run because we don't have ZCTA merged onto the aggregated data.
 wrkdat3_eq4 <- wrkdat3 %>%
   filter(messageF %in% c("message_3", "message_4") & zcta != "00000") %>%
   droplevels()
