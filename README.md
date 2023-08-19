@@ -16,7 +16,7 @@ In Python, we use [`poetry`](https://python-poetry.org/) to manage our dependenc
 To install these dependency managers, you can run (assumes Mac or Linux; see tools' documentation for other operating systems):
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3 -
+curl -sSL https://install.python-poetry.org | python3 -
 Rscript -e 'if(!requireNamespace("remotes")){install.packages("remotes");remotes::install_github("rstudio/renv")} else {remotes::install_github("rstudio/renv")}'
 ```
 
