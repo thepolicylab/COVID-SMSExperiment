@@ -19,7 +19,7 @@ $(DATA_DIR)/dat_indiv.csv: $(R_SRC_DIR)/010_counts_from_vax_list_data_setup.R \
 ## effects_on_vaccinations.Rmd creates all of the figures for the paper.
 ## they are saved one at a time in R_OUTPUT_DIR alone with the report itself.
 $(R_OUTPUT_DIR)/effects_on_vaccinations.pdf: $(DATA_DIR)/dat_indiv.csv \
-	$(DATA_DIR)/final_data_one_line_per_individual.csv \
+#	$(DATA_DIR)/final_data_one_line_per_individual.csv \
 	$(DATA_DIR)/combined_demo_data_by_zcta.csv \
 	$(R_ANALYSIS_DIR)/000_constants.R \
 	$(R_ANALYSIS_DIR)/010_rmd_setup.R \
